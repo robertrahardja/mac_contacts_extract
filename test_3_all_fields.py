@@ -48,15 +48,15 @@ def get_field_safely(person_var, field_name, script_prefix=""):
         pass
     return ""
 
-def get_emails_by_type(person_idx):
-    """Get emails separated by type"""
+def get_emails_separated(person_idx):
+    """Get emails as individual items"""
     script = f'''
     tell application "Contacts"
         try
             set p to person {person_idx}
-            set homeEmail to ""
-            set workEmail to ""
-            set otherEmail to ""
+            set homeEmails to {{}}
+            set workEmails to {{}}
+            set otherEmails to {{}}
             set emailList to emails of p
             if (count of emailList) > 0 then
                 repeat with i from 1 to (count of emailList)
@@ -77,21 +77,57 @@ def get_emails_by_type(person_idx):
                         end if
                     end try
 
-                    if emailLabel is "home" then
-                        if homeEmail is not "" then set homeEmail to homeEmail & "; "
-                        set homeEmail to homeEmail & emailVal
-                    else if emailLabel is "work" then
-                        if workEmail is not "" then set workEmail to workEmail & "; "
-                        set workEmail to workEmail & emailVal
+                    -- Split multiple emails that might be semicolon-separated
+                    set emailValues to {{}}
+                    if emailVal contains ";" then
+                        set AppleScript's text item delimiters to ";"
+                        set emailValues to text items of emailVal
+                        set AppleScript's text item delimiters to ""
                     else
-                        if otherEmail is not "" then set otherEmail to otherEmail & "; "
-                        set otherEmail to otherEmail & emailVal
+                        set emailValues to {{emailVal}}
                     end if
+
+                    repeat with singleEmail in emailValues
+                        set trimmedEmail to singleEmail
+                        -- Trim leading/trailing spaces
+                        repeat while trimmedEmail starts with " "
+                            set trimmedEmail to text 2 thru -1 of trimmedEmail
+                        end repeat
+                        repeat while trimmedEmail ends with " "
+                            set trimmedEmail to text 1 thru -2 of trimmedEmail
+                        end repeat
+
+                        if emailLabel is "home" then
+                            set end of homeEmails to trimmedEmail
+                        else if emailLabel is "work" then
+                            set end of workEmails to trimmedEmail
+                        else
+                            set end of otherEmails to trimmedEmail
+                        end if
+                    end repeat
                 end repeat
             end if
-            return homeEmail & "|" & workEmail & "|" & otherEmail
+
+            set output to ""
+            -- Output home emails
+            repeat with i from 1 to (count of homeEmails)
+                if output is not "" then set output to output & "|"
+                set output to output & "home:" & item i of homeEmails
+            end repeat
+            -- Output work emails
+            repeat with i from 1 to (count of workEmails)
+                if output is not "" then set output to output & "|"
+                set output to output & "work:" & item i of workEmails
+            end repeat
+            -- Output other emails
+            repeat with i from 1 to (count of otherEmails)
+                if output is not "" then set output to output & "|"
+                set output to output & "other:" & item i of otherEmails
+            end repeat
+
+            return output
         on error
-            return "|||"
+            return ""
         end try
     end tell
     '''
@@ -99,28 +135,31 @@ def get_emails_by_type(person_idx):
     try:
         result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
-            parts = result.stdout.strip().split('|')
-            return {
-                'home': parts[0] if len(parts) > 0 else '',
-                'work': parts[1] if len(parts) > 1 else '',
-                'other': parts[2] if len(parts) > 2 else ''
-            }
+            emails = {'home': [], 'work': [], 'other': []}
+            if result.stdout.strip():
+                parts = result.stdout.strip().split('|')
+                for part in parts:
+                    if ':' in part:
+                        type_label, value = part.split(':', 1)
+                        if type_label in emails:
+                            emails[type_label].append(value)
+            return emails
     except:
         pass
-    return {'home': '', 'work': '', 'other': ''}
+    return {'home': [], 'work': [], 'other': []}
 
-def get_phones_by_type(person_idx):
-    """Get phones separated by type"""
+def get_phones_separated(person_idx):
+    """Get phones as individual items"""
     script = f'''
     tell application "Contacts"
         try
             set p to person {person_idx}
-            set mobilePhone to ""
-            set homePhone to ""
-            set workPhone to ""
-            set workFax to ""
-            set homeFax to ""
-            set otherPhone to ""
+            set mobilePhones to {{}}
+            set homePhones to {{}}
+            set workPhones to {{}}
+            set workFaxes to {{}}
+            set homeFaxes to {{}}
+            set otherPhones to {{}}
             set phoneList to phones of p
             if (count of phoneList) > 0 then
                 repeat with i from 1 to (count of phoneList)
@@ -149,30 +188,78 @@ def get_phones_by_type(person_idx):
                         end if
                     end try
 
-                    if phoneType is "mobile" then
-                        if mobilePhone is not "" then set mobilePhone to mobilePhone & "; "
-                        set mobilePhone to mobilePhone & phoneVal
-                    else if phoneType is "home" then
-                        if homePhone is not "" then set homePhone to homePhone & "; "
-                        set homePhone to homePhone & phoneVal
-                    else if phoneType is "work" then
-                        if workPhone is not "" then set workPhone to workPhone & "; "
-                        set workPhone to workPhone & phoneVal
-                    else if phoneType is "workfax" then
-                        if workFax is not "" then set workFax to workFax & "; "
-                        set workFax to workFax & phoneVal
-                    else if phoneType is "homefax" then
-                        if homeFax is not "" then set homeFax to homeFax & "; "
-                        set homeFax to homeFax & phoneVal
+                    -- Split multiple numbers that are semicolon-separated
+                    set phoneNumbers to {{}}
+                    if phoneVal contains ";" then
+                        set AppleScript's text item delimiters to ";"
+                        set phoneNumbers to text items of phoneVal
+                        set AppleScript's text item delimiters to ""
                     else
-                        if otherPhone is not "" then set otherPhone to otherPhone & "; "
-                        set otherPhone to otherPhone & phoneVal
+                        set phoneNumbers to {{phoneVal}}
                     end if
+
+                    repeat with phoneNum in phoneNumbers
+                        set trimmedPhone to phoneNum
+                        -- Trim leading/trailing spaces
+                        repeat while trimmedPhone starts with " "
+                            set trimmedPhone to text 2 thru -1 of trimmedPhone
+                        end repeat
+                        repeat while trimmedPhone ends with " "
+                            set trimmedPhone to text 1 thru -2 of trimmedPhone
+                        end repeat
+
+                        if phoneType is "mobile" then
+                            set end of mobilePhones to trimmedPhone
+                        else if phoneType is "home" then
+                            set end of homePhones to trimmedPhone
+                        else if phoneType is "work" then
+                            set end of workPhones to trimmedPhone
+                        else if phoneType is "workfax" then
+                            set end of workFaxes to trimmedPhone
+                        else if phoneType is "homefax" then
+                            set end of homeFaxes to trimmedPhone
+                        else
+                            set end of otherPhones to trimmedPhone
+                        end if
+                    end repeat
                 end repeat
             end if
-            return mobilePhone & "|" & homePhone & "|" & workPhone & "|" & workFax & "|" & homeFax & "|" & otherPhone
+
+            set output to ""
+            -- Output mobile phones
+            repeat with i from 1 to (count of mobilePhones)
+                if output is not "" then set output to output & "|"
+                set output to output & "mobile:" & item i of mobilePhones
+            end repeat
+            -- Output home phones
+            repeat with i from 1 to (count of homePhones)
+                if output is not "" then set output to output & "|"
+                set output to output & "home:" & item i of homePhones
+            end repeat
+            -- Output work phones
+            repeat with i from 1 to (count of workPhones)
+                if output is not "" then set output to output & "|"
+                set output to output & "work:" & item i of workPhones
+            end repeat
+            -- Output work faxes
+            repeat with i from 1 to (count of workFaxes)
+                if output is not "" then set output to output & "|"
+                set output to output & "workfax:" & item i of workFaxes
+            end repeat
+            -- Output home faxes
+            repeat with i from 1 to (count of homeFaxes)
+                if output is not "" then set output to output & "|"
+                set output to output & "homefax:" & item i of homeFaxes
+            end repeat
+            -- Output other phones
+            repeat with i from 1 to (count of otherPhones)
+                if output is not "" then set output to output & "|"
+                set output to output & "other:" & item i of otherPhones
+            end repeat
+
+            return output
         on error
-            return "|||||"
+            return ""
         end try
     end tell
     '''
@@ -180,28 +267,28 @@ def get_phones_by_type(person_idx):
     try:
         result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
-            parts = result.stdout.strip().split('|')
-            return {
-                'mobile': parts[0] if len(parts) > 0 else '',
-                'home': parts[1] if len(parts) > 1 else '',
-                'work': parts[2] if len(parts) > 2 else '',
-                'work_fax': parts[3] if len(parts) > 3 else '',
-                'home_fax': parts[4] if len(parts) > 4 else '',
-                'other': parts[5] if len(parts) > 5 else ''
-            }
+            phones = {'mobile': [], 'home': [], 'work': [], 'workfax': [], 'homefax': [], 'other': []}
+            if result.stdout.strip():
+                parts = result.stdout.strip().split('|')
+                for part in parts:
+                    if ':' in part:
+                        type_label, value = part.split(':', 1)
+                        if type_label in phones:
+                            phones[type_label].append(value)
+            return phones
     except:
         pass
-    return {'mobile': '', 'home': '', 'work': '', 'work_fax': '', 'home_fax': '', 'other': ''}
+    return {'mobile': [], 'home': [], 'work': [], 'workfax': [], 'homefax': [], 'other': []}
 
-def get_addresses_by_type(person_idx):
-    """Get addresses separated by type"""
+def get_addresses_separated(person_idx):
+    """Get addresses as individual items"""
     script = f'''
     tell application "Contacts"
         try
             set p to person {person_idx}
-            set homeAddr to ""
-            set workAddr to ""
-            set otherAddr to ""
+            set homeAddresses to {{}}
+            set workAddresses to {{}}
+            set otherAddresses to {{}}
             set addrList to addresses of p
             if (count of addrList) > 0 then
                 repeat with i from 1 to (count of addrList)
@@ -256,21 +343,38 @@ def get_addresses_by_type(person_idx):
                         end if
                     end try
 
-                    if addrType is "home" then
-                        if homeAddr is not "" then set homeAddr to homeAddr & "; "
-                        set homeAddr to homeAddr & addrParts
-                    else if addrType is "work" then
-                        if workAddr is not "" then set workAddr to workAddr & "; "
-                        set workAddr to workAddr & addrParts
-                    else
-                        if otherAddr is not "" then set otherAddr to otherAddr & "; "
-                        set otherAddr to otherAddr & addrParts
+                    if addrParts is not "" then
+                        if addrType is "home" then
+                            set end of homeAddresses to addrParts
+                        else if addrType is "work" then
+                            set end of workAddresses to addrParts
+                        else
+                            set end of otherAddresses to addrParts
+                        end if
                     end if
                 end repeat
             end if
-            return homeAddr & "|" & workAddr & "|" & otherAddr
+
+            set output to ""
+            -- Output home addresses
+            repeat with i from 1 to (count of homeAddresses)
+                if output is not "" then set output to output & "|"
+                set output to output & "home:" & item i of homeAddresses
+            end repeat
+            -- Output work addresses
+            repeat with i from 1 to (count of workAddresses)
+                if output is not "" then set output to output & "|"
+                set output to output & "work:" & item i of workAddresses
+            end repeat
+            -- Output other addresses
+            repeat with i from 1 to (count of otherAddresses)
+                if output is not "" then set output to output & "|"
+                set output to output & "other:" & item i of otherAddresses
+            end repeat
+
+            return output
         on error
-            return "||"
+            return ""
         end try
     end tell
     '''
@@ -278,15 +382,18 @@ def get_addresses_by_type(person_idx):
     try:
         result = subprocess.run(['osascript', '-e', script], capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
-            parts = result.stdout.strip().split('|')
-            return {
-                'home': parts[0] if len(parts) > 0 else '',
-                'work': parts[1] if len(parts) > 1 else '',
-                'other': parts[2] if len(parts) > 2 else ''
-            }
+            addresses = {'home': [], 'work': [], 'other': []}
+            if result.stdout.strip():
+                parts = result.stdout.strip().split('|')
+                for part in parts:
+                    if ':' in part:
+                        type_label, value = part.split(':', 1)
+                        if type_label in addresses:
+                            addresses[type_label].append(value)
+            return addresses
     except:
         pass
-    return {'home': '', 'work': '', 'other': ''}
+    return {'home': [], 'work': [], 'other': []}
 
 def export_contact_all_fields(idx):
     """Export single contact with all available fields in separate columns"""
@@ -329,41 +436,59 @@ def export_contact_all_fields(idx):
     except:
         contact['Birthday'] = ""
 
-    # Emails by type
-    emails = get_emails_by_type(idx)
-    contact['Home Email'] = emails['home']
-    contact['Work Email'] = emails['work']
-    contact['Other Email'] = emails['other']
+    # Emails separated into individual columns
+    emails = get_emails_separated(idx)
+    # Store each email in numbered columns
+    for i, email in enumerate(emails.get('home', []), 1):
+        contact[f'Home Email {i}'] = email
+    for i, email in enumerate(emails.get('work', []), 1):
+        contact[f'Work Email {i}'] = email
+    for i, email in enumerate(emails.get('other', []), 1):
+        contact[f'Other Email {i}'] = email
 
-    # Phones by type
-    phones = get_phones_by_type(idx)
-    contact['Mobile Phone'] = phones['mobile']
-    contact['Home Phone'] = phones['home']
-    contact['Work Phone'] = phones['work']
-    contact['Work Fax'] = phones['work_fax']
-    contact['Home Fax'] = phones['home_fax']
-    contact['Other Phone'] = phones['other']
+    # Phones separated into individual columns
+    phones = get_phones_separated(idx)
+    # Store each phone in numbered columns
+    for i, phone in enumerate(phones.get('mobile', []), 1):
+        contact[f'Mobile Phone {i}'] = phone
+    for i, phone in enumerate(phones.get('home', []), 1):
+        contact[f'Home Phone {i}'] = phone
+    for i, phone in enumerate(phones.get('work', []), 1):
+        contact[f'Work Phone {i}'] = phone
+    for i, fax in enumerate(phones.get('workfax', []), 1):
+        contact[f'Work Fax {i}'] = fax
+    for i, fax in enumerate(phones.get('homefax', []), 1):
+        contact[f'Home Fax {i}'] = fax
+    for i, phone in enumerate(phones.get('other', []), 1):
+        contact[f'Other Phone {i}'] = phone
 
-    # Addresses by type
-    addresses = get_addresses_by_type(idx)
-    contact['Home Address'] = addresses['home']
-    contact['Work Address'] = addresses['work']
-    contact['Other Address'] = addresses['other']
+    # Addresses separated into individual columns
+    addresses = get_addresses_separated(idx)
+    # Store each address in numbered columns
+    for i, address in enumerate(addresses.get('home', []), 1):
+        contact[f'Home Address {i}'] = address
+    for i, address in enumerate(addresses.get('work', []), 1):
+        contact[f'Work Address {i}'] = address
+    for i, address in enumerate(addresses.get('other', []), 1):
+        contact[f'Other Address {i}'] = address
 
     # Notes
     contact['Notes'] = get_field_safely(idx, 'note')
 
-    # URLs (simplified - just get first one for now)
+    # URLs - get all and number them
     url_script = f'''
     tell application "Contacts"
         try
             set p to person {idx}
+            set output to ""
             set urlList to urls of p
             if (count of urlList) > 0 then
-                return value of item 1 of urlList
-            else
-                return ""
+                repeat with i from 1 to (count of urlList)
+                    if i > 1 then set output to output & "|"
+                    set output to output & value of item i of urlList
+                end repeat
             end if
+            return output
         on error
             return ""
         end try
@@ -371,9 +496,14 @@ def export_contact_all_fields(idx):
     '''
     try:
         result = subprocess.run(['osascript', '-e', url_script], capture_output=True, text=True, timeout=2)
-        contact['URLs'] = result.stdout.strip() if result.returncode == 0 else ""
+        if result.returncode == 0 and result.stdout.strip():
+            urls = result.stdout.strip().split('|')
+            for i, url in enumerate(urls, 1):
+                contact[f'URL {i}'] = url
+        else:
+            contact['URL 1'] = ""
     except:
-        contact['URLs'] = ""
+        contact['URL 1'] = ""
 
     return contact
 
@@ -382,35 +512,35 @@ def export_3_all_fields():
     print("🧪 Exporting 3 contacts with ALL available fields...\n")
 
     contacts = []
+    all_columns = set()  # Track all unique columns across contacts
 
     for i in range(1, 4):
         print(f"📱 Processing contact {i}...")
         contact = export_contact_all_fields(i)
+        all_columns.update(contact.keys())  # Collect all column names
 
         # Show summary
         name = f"{contact['First Name']} {contact['Last Name']}".strip()
         print(f"   ✅ {name or 'Contact ' + str(i)}")
         if contact['Organization']:
             print(f"      Organization: {contact['Organization']}")
-        if contact['Work Email'] or contact['Home Email']:
-            emails_summary = []
-            if contact['Work Email']:
-                emails_summary.append(f"Work: {contact['Work Email'][:30]}..." if len(contact['Work Email']) > 30 else f"Work: {contact['Work Email']}")
-            if contact['Home Email']:
-                emails_summary.append(f"Home: {contact['Home Email'][:30]}..." if len(contact['Home Email']) > 30 else f"Home: {contact['Home Email']}")
-            print(f"      Emails: {', '.join(emails_summary)}")
-        if contact['Mobile Phone'] or contact['Work Phone']:
-            phones_summary = []
-            if contact['Mobile Phone']:
-                phones_summary.append(f"Mobile: {contact['Mobile Phone']}")
-            if contact['Work Phone']:
-                phones_summary.append(f"Work: {contact['Work Phone'][:30]}..." if len(contact['Work Phone']) > 30 else f"Work: {contact['Work Phone']}")
-            print(f"      Phones: {', '.join(phones_summary)}")
+
+        # Show emails summary
+        email_fields = [k for k in contact.keys() if 'Email' in k and contact[k]]
+        if email_fields:
+            emails_summary = [f"{k}: {contact[k][:30]}..." if len(contact[k]) > 30 else f"{k}: {contact[k]}" for k in email_fields]
+            print(f"      Emails: {', '.join(emails_summary[:2])}" + ("..." if len(emails_summary) > 2 else ""))
+
+        # Show phones summary
+        phone_fields = [k for k in contact.keys() if ('Phone' in k or 'Fax' in k) and contact[k]]
+        if phone_fields:
+            phones_summary = [f"{k}: {contact[k]}" for k in phone_fields]
+            print(f"      Phones: {', '.join(phones_summary[:2])}" + ("..." if len(phones_summary) > 2 else ""))
 
         contacts.append(contact)
 
-    print(f"\n✅ Exported {len(contacts)} contacts with all fields")
-    return contacts
+    print(f"\n✅ Exported {len(contacts)} contacts with {len(all_columns)} unique fields")
+    return contacts, sorted(all_columns)
 
 def authenticate_google_sheets():
     """Authenticate and return Google Sheets service"""
@@ -432,24 +562,32 @@ def authenticate_google_sheets():
 
     return build('sheets', 'v4', credentials=creds)
 
-def upload_all_fields_to_sheets(service, contacts):
-    """Upload all fields to Google Sheets with separate columns for each type"""
+def upload_all_fields_to_sheets(service, contacts_data):
+    """Upload all fields to Google Sheets with numbered columns for multiples"""
+    contacts, all_columns = contacts_data
     sheet_id = os.getenv('GOOGLE_SHEET_ID')
     sheet_name = os.getenv('SHEET_NAME', 'Sheet1')
 
-    print(f"\n📊 Uploading to Google Sheets with separate columns for each field type...")
+    print(f"\n📊 Uploading to Google Sheets with numbered columns for multiple values...")
 
-    # Define ALL headers with separate columns for each type
-    headers = [
+    # Build dynamic headers based on what's actually in the data
+    # Start with core fields that are always present
+    base_headers = [
         'First Name', 'Last Name', 'Middle Name', 'Nickname',
         'Name Prefix', 'Name Suffix',
         'Organization', 'Job Title', 'Department',
-        'Birthday',
-        'Home Email', 'Work Email', 'Other Email',
-        'Mobile Phone', 'Home Phone', 'Work Phone', 'Work Fax', 'Home Fax', 'Other Phone',
-        'Home Address', 'Work Address', 'Other Address',
-        'Notes', 'URLs'
+        'Birthday'
     ]
+
+    # Collect all dynamic field names from the contacts
+    email_headers = sorted([col for col in all_columns if 'Email' in col])
+    phone_headers = sorted([col for col in all_columns if 'Phone' in col or 'Fax' in col])
+    address_headers = sorted([col for col in all_columns if 'Address' in col])
+    # Get URL headers from the data
+    url_headers = sorted([col for col in all_columns if col.startswith('URL')])
+    other_headers = ['Notes'] + (url_headers if url_headers else ['URL 1'])
+
+    headers = base_headers + email_headers + phone_headers + address_headers + other_headers
 
     values = [headers]
     for contact in contacts:
@@ -522,13 +660,13 @@ def main():
     print("=" * 60)
 
     # Export 3 contacts
-    contacts = export_3_all_fields()
+    contacts_data = export_3_all_fields()
 
     # Upload to sheets
     print("\n🔐 Authenticating...")
     service = authenticate_google_sheets()
 
-    if upload_all_fields_to_sheets(service, contacts):
+    if upload_all_fields_to_sheets(service, contacts_data):
         print("\n🎉 SUCCESS!")
         print("✅ All fields exported and uploaded")
         print("✅ Check your Google Sheet for comprehensive data")
