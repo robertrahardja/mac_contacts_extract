@@ -1,0 +1,21 @@
+# Mac Contacts Export to Google Sheets - Dependencies
+
+# Google API libraries
+google-api-python-client==2.95.0
+google-auth-httplib2==0.1.0
+google-auth-oauthlib==1.0.0
+
+# macOS Contacts Bridge
+pyobjc-core==9.2
+pyobjc-framework-Contacts==9.2
+pyobjc-framework-Cocoa==9.2
+
+# Data processing
+python-dateutil==2.8.2
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Utilities
+tqdm==4.66.1
+colorama==0.4.6
